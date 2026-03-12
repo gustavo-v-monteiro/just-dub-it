@@ -159,6 +159,11 @@ def fastapi_app() -> "FastAPI":  # return type annotation for clarity
     # Dynamically import serve.py from the cloned repo so that it picks up the
     # environment variables we just set before executing its module-level code.
     spec = importlib.util.spec_from_file_location("serve", "/app/serve.py")
+    if spec is None or spec.loader is None:
+        raise ImportError(
+            "Could not load module 'serve' from '/app/serve.py'. "
+            "Ensure the repository was cloned correctly and the file exists."
+        )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
