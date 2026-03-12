@@ -132,6 +132,12 @@ async def dub_video(
                 dst.write(chunk)
 
         # Run the two-stage JustDubit inference pipeline.
+        global pipeline
+        if pipeline is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Model pipeline is not available yet; please retry later.",
+            )
         video_out, audio_out = pipeline(
             prompt=prompt,
             negative_prompt=negative_prompt,
