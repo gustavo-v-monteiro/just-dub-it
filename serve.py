@@ -35,8 +35,8 @@ from fastapi.security import APIKeyHeader
 from ltx_core.loader import LTXV_LORA_COMFY_RENAMING_MAP, LoraPathStrengthAndSDOps
 from ltx_core.model.video_vae import TilingConfig
 from ltx_pipelines.pipeline_justdubit import JustDubitPipeline
-from ltx_pipelines.utils.constants import AUDIO_SAMPLE_RATE
-from ltx_pipelines.utils.media_io import encode_video
+from ltx_pipelines.constants import AUDIO_SAMPLE_RATE
+from ltx_pipelines.media_io import encode_video
 
 # ── Model paths ───────────────────────────────────────────────────────────────
 # All paths come from environment variables set by the Modal deployment script.
