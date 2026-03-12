@@ -23,6 +23,7 @@ Usage (Modal):
 """
 
 import os
+import secrets
 import tempfile
 import uuid
 from contextlib import asynccontextmanager
@@ -34,9 +35,9 @@ from fastapi.security import APIKeyHeader
 
 from ltx_core.loader import LTXV_LORA_COMFY_RENAMING_MAP, LoraPathStrengthAndSDOps
 from ltx_core.model.video_vae import TilingConfig
-from ltx_pipelines.pipeline_justdubit import JustDubitPipeline
 from ltx_pipelines.constants import AUDIO_SAMPLE_RATE
 from ltx_pipelines.media_io import encode_video
+from ltx_pipelines.pipeline_justdubit import JustDubitPipeline
 
 # ── Model paths ───────────────────────────────────────────────────────────────
 # All paths come from environment variables set by the Modal deployment script.
@@ -55,7 +56,8 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 
 async def verify_api_key(key: str = Security(api_key_header)) -> None:
     """Raise HTTP 403 if the provided key does not match JUSTDUBIT_API_KEY."""
-    if not API_KEY or key != API_KEY:
+    # Use constant-time comparison to mitigate timing side-channel attacks.
+    if not API_KEY or not secrets.compare_digest(key, API_KEY):
         raise HTTPException(status_code=403, detail="Invalid API key")
 
 
@@ -118,59 +120,53 @@ async def dub_video(
           -F "prompt=The man is speaking French, saying: 'Bonjour le monde!'" \\
           --output dubbed_output.mp4
     """
-    # Write the uploaded video to a temp file so the pipeline can read it.
-    with tempfile.TemporaryDirectory() as tmp:
-        src_path = Path(tmp) / f"input_{uuid.uuid4().hex}.mp4"
-        out_path = Path(tmp) / f"output_{uuid.uuid4().hex}.mp4"
+    if pipeline is None:
+        raise HTTPException(status_code=503, detail="Model pipeline is not available yet; please retry later.")
 
-        # Stream the uploaded video to disk in chunks to avoid high memory usage.
-        with src_path.open("wb") as dst:
-            while True:
-                chunk = await video.read(1024 * 1024)  # 1 MB chunks
-                if not chunk:
-                    break
-                dst.write(chunk)
-
-        # Run the two-stage JustDubit inference pipeline.
-        global pipeline
-        if pipeline is None:
-            raise HTTPException(
-                status_code=503,
-                detail="Model pipeline is not available yet; please retry later.",
-            )
-        video_out, audio_out = pipeline(
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            seed=seed,
-            height=height,
-            width=width,
-            num_frames=num_frames,
-            frame_rate=frame_rate,
-            num_inference_steps=num_inference_steps,
-            cfg_guidance_scale=cfg_guidance_scale,
-            images=[],
-            video_conditioning=[(str(src_path), 1.0)],
-            tiling_config=TilingConfig.default(),
-        )
-
-        # Encode the output tensors to an MP4 file.
-        encode_video(
-            video=video_out,
-            fps=int(frame_rate),
-            audio=audio_out,
-            audio_sample_rate=AUDIO_SAMPLE_RATE,
-            output_path=str(out_path),
-        )
-
-        # Read the file into memory so it survives the TemporaryDirectory cleanup.
-        video_bytes = out_path.read_bytes()
-
-    # Write to a second temp file outside the deleted directory and stream it.
+    # Create the final output temp file up front so it outlives the input TemporaryDirectory.
     final_tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-    final_tmp.write(video_bytes)
-    final_tmp.flush()
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            src_path = Path(tmp) / f"input_{uuid.uuid4().hex}.mp4"
 
-    # Schedule deletion of the temp file after the response is fully sent.
+            # Stream the uploaded video to disk in chunks to avoid loading it all into memory.
+            with src_path.open("wb") as dst:
+                while True:
+                    chunk = await video.read(1024 * 1024)  # 1 MB chunks
+                    if not chunk:
+                        break
+                    dst.write(chunk)
+
+            # Run the two-stage JustDubit inference pipeline.
+            video_out, audio_out = pipeline(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                seed=seed,
+                height=height,
+                width=width,
+                num_frames=num_frames,
+                frame_rate=frame_rate,
+                num_inference_steps=num_inference_steps,
+                cfg_guidance_scale=cfg_guidance_scale,
+                images=[],
+                video_conditioning=[(str(src_path), 1.0)],
+                tiling_config=TilingConfig.default(),
+            )
+
+            # Encode the output tensors directly to the final temp file (no intermediate copy).
+            encode_video(
+                video=video_out,
+                fps=int(frame_rate),
+                audio=audio_out,
+                audio_sample_rate=AUDIO_SAMPLE_RATE,
+                output_path=final_tmp.name,
+            )
+    finally:
+        # Close our handle; the file stays on disk because delete=False.
+        # BackgroundTasks will delete it after the response is fully sent.
+        final_tmp.close()
+
+    # Schedule deletion of the temp file after the response is fully streamed.
     background_tasks.add_task(os.unlink, final_tmp.name)
 
     return FileResponse(

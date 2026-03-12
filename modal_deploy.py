@@ -36,13 +36,14 @@ if TYPE_CHECKING:
 # Build a Debian-slim image with all system and Python dependencies baked in.
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    # System libraries required by ffmpeg / PyAV and the git clone below.
-    .apt_install("git", "ffmpeg", "libavcodec-dev", "libavformat-dev")
+    # System libraries required by ffmpeg / PyAV, the git clone, and the uv installer.
+    .apt_install("git", "curl", "ffmpeg", "libavcodec-dev", "libavformat-dev")
     # Install the uv package manager used by this workspace.
     .run_commands(
         "curl -LsSf https://astral.sh/uv/install.sh | sh && ln -s /root/.local/bin/uv /usr/local/bin/uv",
     )
-    # Clone the repo and install all workspace packages (ltx-core, ltx-pipelines) into the system interpreter.
+    # Clone the repo and install all workspace packages into the system interpreter
+    # (--system so that ltx_core / ltx_pipelines are importable without activating a venv).
     .run_commands(
         "git clone https://github.com/gustavo-v-monteiro/just-dub-it.git /app && cd /app && uv sync --frozen --system",
     )
@@ -61,7 +62,14 @@ app = modal.App("justdubit", image=image)
 
 
 # ── 4. One-time model download ────────────────────────────────────────────────
-@app.function(volumes={MODEL_DIR: volume}, timeout=3600)
+# If Gemma is a gated model, add your HuggingFace token secret:
+#   modal secret create huggingface-token HF_TOKEN=hf_...
+# Then uncomment: secrets=[modal.Secret.from_name("huggingface-token")]
+@app.function(
+    volumes={MODEL_DIR: volume},
+    timeout=3600,
+    # secrets=[modal.Secret.from_name("huggingface-token")],  # uncomment if Gemma requires HF token
+)
 def download_models() -> None:
     """Download all required model weights into the persistent Modal Volume.
 
@@ -123,18 +131,23 @@ def download_models() -> None:
 
 
 # ── 5. FastAPI web endpoint ───────────────────────────────────────────────────
-# Note: if the Gemma model requires a HuggingFace token (gated model), create a
-# Modal secret named "huggingface-token" containing HF_TOKEN and add it here:
-#   secrets=[modal.Secret.from_name("huggingface-token")]
+# Secrets are injected via Modal's secret management:
 #
-# To protect the endpoint with an API key, create a Modal secret named
-# "justdubit-api-key" containing JUSTDUBIT_API_KEY and add it here:
-#   secrets=[modal.Secret.from_name("justdubit-api-key")]
+#   • HuggingFace token (if Gemma is a gated model):
+#       modal secret create huggingface-token HF_TOKEN=hf_...
+#     Then add: secrets=[modal.Secret.from_name("huggingface-token")]
+#
+#   • API key to protect the /dub endpoint:
+#       modal secret create justdubit-api-key JUSTDUBIT_API_KEY=your-secret
+#     Then add: secrets=[modal.Secret.from_name("justdubit-api-key")]
+#
+# Both secrets can be combined: secrets=[modal.Secret.from_name("huggingface-token"), modal.Secret.from_name("justdubit-api-key")]
 @app.function(
     gpu=modal.gpu.A100(size="40GB"),  # change to "80GB" or modal.gpu.H100() for larger models
     volumes={MODEL_DIR: volume},
     timeout=600,  # 10-minute hard limit per request
     container_idle_timeout=300,  # keep container warm for 5 minutes after last request
+    # secrets=[modal.Secret.from_name("justdubit-api-key")],  # uncomment to enable API key auth
 )
 @modal.concurrent(max_inputs=1)  # one inference job at a time per container (GPU-bound)
 @modal.asgi_app()
