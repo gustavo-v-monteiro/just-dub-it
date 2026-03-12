@@ -42,9 +42,9 @@ image = (
     .run_commands(
         "curl -LsSf https://astral.sh/uv/install.sh | sh && ln -s /root/.local/bin/uv /usr/local/bin/uv",
     )
-    # Clone the repo and install all workspace packages (ltx-core, ltx-pipelines).
+    # Clone the repo and install all workspace packages (ltx-core, ltx-pipelines) into the system interpreter.
     .run_commands(
-        "git clone https://github.com/gustavo-v-monteiro/just-dub-it.git /app && cd /app && uv sync --frozen",
+        "git clone https://github.com/gustavo-v-monteiro/just-dub-it.git /app && cd /app && uv sync --frozen --system",
     )
     # Install the API-serving extras on top of the uv-managed environment.
     .pip_install("fastapi", "uvicorn[standard]", "python-multipart", "huggingface_hub")
