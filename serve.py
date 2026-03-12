@@ -123,7 +123,13 @@ async def dub_video(
         src_path = Path(tmp) / f"input_{uuid.uuid4().hex}.mp4"
         out_path = Path(tmp) / f"output_{uuid.uuid4().hex}.mp4"
 
-        src_path.write_bytes(await video.read())
+        # Stream the uploaded video to disk in chunks to avoid high memory usage.
+        with src_path.open("wb") as dst:
+            while True:
+                chunk = await video.read(1024 * 1024)  # 1 MB chunks
+                if not chunk:
+                    break
+                dst.write(chunk)
 
         # Run the two-stage JustDubit inference pipeline.
         video_out, audio_out = pipeline(
