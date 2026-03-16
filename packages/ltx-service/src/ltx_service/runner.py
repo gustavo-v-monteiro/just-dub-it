@@ -11,7 +11,7 @@ import torch
 
 from ltx_core.loader import LTXV_LORA_COMFY_RENAMING_MAP, LoraPathStrengthAndSDOps
 from ltx_core.model.video_vae import TilingConfig
-from ltx_pipelines.constants import AUDIO_SAMPLE_RATE, DEFAULT_LORA_STRENGTH, DEFAULT_NUM_FRAMES
+from ltx_pipelines.constants import AUDIO_SAMPLE_RATE, DEFAULT_LORA_STRENGTH
 from ltx_pipelines.media_io import encode_video
 from ltx_pipelines.pipeline_justdubit import JustDubitPipeline, extract_first_frame
 from ltx_service.bootstrap import ensure_model_paths
@@ -122,7 +122,7 @@ class DubbingRuntime:
                 seed=request.seed,
                 height=request.height,
                 width=request.width,
-                num_frames=DEFAULT_NUM_FRAMES,
+                num_frames=input_frames,
                 frame_rate=request.frame_rate,
                 num_inference_steps=request.num_inference_steps,
                 cfg_guidance_scale=request.cfg_guidance_scale,

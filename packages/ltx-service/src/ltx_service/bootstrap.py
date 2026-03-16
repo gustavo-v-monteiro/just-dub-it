@@ -1,10 +1,17 @@
 import shutil
 from pathlib import Path
 
-from huggingface_hub import hf_hub_download, snapshot_download
+from huggingface_hub import HfApi, hf_hub_download, snapshot_download
+from huggingface_hub.errors import GatedRepoError
 
 from ltx_service.config import ModelPaths, expected_model_paths
-from ltx_service.model_manifest import FILE_ARTIFACTS, GEMMA_ARTIFACT
+from ltx_service.model_manifest import (
+    FILE_ARTIFACTS,
+    GEMMA_ARTIFACT,
+    GEMMA_PUBLIC_MIRROR_PREFIX,
+    GEMMA_PUBLIC_MIRROR_REPO_ID,
+    GEMMA_PUBLIC_MIRROR_REQUIRED_FILES,
+)
 
 
 def verify_model_paths(model_paths: ModelPaths) -> list[str]:
@@ -40,6 +47,29 @@ def ensure_model_paths(model_paths: ModelPaths) -> ModelPaths:
     return model_paths
 
 
+def _download_gemma_public_mirror(destination: Path, *, token: str | None = None, force: bool = False) -> None:
+    api = HfApi(token=token)
+    prefix = f"{GEMMA_PUBLIC_MIRROR_PREFIX}/"
+    required_paths = {f"{prefix}{filename}" for filename in GEMMA_PUBLIC_MIRROR_REQUIRED_FILES}
+    files = [path for path in api.list_repo_files(GEMMA_PUBLIC_MIRROR_REPO_ID) if path in required_paths]
+    if not files:
+        raise FileNotFoundError(f"No files found under {GEMMA_PUBLIC_MIRROR_REPO_ID}:{prefix}")
+
+    for repo_path in files:
+        relative_path = Path(repo_path.removeprefix(prefix))
+        destination_path = destination / relative_path
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        downloaded_path = Path(
+            hf_hub_download(
+                repo_id=GEMMA_PUBLIC_MIRROR_REPO_ID,
+                filename=repo_path,
+                token=token,
+                force_download=force,
+            )
+        )
+        shutil.copy2(downloaded_path, destination_path)
+
+
 def bootstrap_models(
     model_root: Path,
     *,
@@ -69,12 +99,15 @@ def bootstrap_models(
         shutil.rmtree(gemma_destination)
     if not gemma_destination.exists():
         gemma_destination.mkdir(parents=True, exist_ok=True)
-        snapshot_download(
-            repo_id=GEMMA_ARTIFACT.repo_id,
-            local_dir=str(gemma_destination),
-            token=token,
-            force_download=force,
-        )
+        try:
+            snapshot_download(
+                repo_id=GEMMA_ARTIFACT.repo_id,
+                local_dir=str(gemma_destination),
+                token=token,
+                force_download=force,
+            )
+        except GatedRepoError:
+            _download_gemma_public_mirror(gemma_destination, token=token, force=force)
 
     model_paths = expected_model_paths(model_root)
     ensure_model_paths(model_paths)

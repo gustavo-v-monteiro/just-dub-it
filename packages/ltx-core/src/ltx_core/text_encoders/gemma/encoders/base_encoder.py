@@ -235,7 +235,7 @@ def _load_system_prompt(prompt_name: str) -> str:
         return f.read()
 
 
-def _find_matching_dir(root_path: str, pattern: str) -> str:
+def _find_matching_dir(root_path: str, *patterns: str) -> str:
     """
     Recursively search for files matching a glob pattern and return the parent directory of the first match.
 
@@ -243,14 +243,21 @@ def _find_matching_dir(root_path: str, pattern: str) -> str:
     See: https://huggingface.co/google/gemma-3-12b-it-qat-q4_0-unquantized
     """
 
-    matches = list(Path(root_path).rglob(pattern))
-    if not matches:
-        raise FileNotFoundError(f"No files matching pattern '{pattern}' found under {root_path}")
-    return str(matches[0].parent)
+    for pattern in patterns:
+        matches = list(Path(root_path).rglob(pattern))
+        if matches:
+            return str(matches[0].parent)
+    joined_patterns = ", ".join(repr(pattern) for pattern in patterns)
+    raise FileNotFoundError(f"No files matching patterns {joined_patterns} found under {root_path}")
 
 
 def module_ops_from_gemma_root(gemma_root: str) -> tuple[ModuleOps, ...]:
-    gemma_path = _find_matching_dir(gemma_root, "model*.safetensors")
+    gemma_path = _find_matching_dir(
+        gemma_root,
+        "model*.safetensors",
+        "model.safetensors.index.json",
+        "*.safetensors",
+    )
     tokenizer_path = _find_matching_dir(gemma_root, "tokenizer.model")
 
     def load_gemma(module: GemmaTextEncoderModelBase) -> GemmaTextEncoderModelBase:

@@ -53,6 +53,23 @@ GEMMA_ARTIFACT = HuggingFaceSnapshotArtifact(
     required_markers=("config.json",),
 )
 
+GEMMA_PUBLIC_MIRROR_REPO_ID = "DeepBeepMeep/LTX-2"
+GEMMA_PUBLIC_MIRROR_PREFIX = "gemma-3-12b-it-qat-q4_0-unquantized"
+GEMMA_PUBLIC_MIRROR_REQUIRED_FILES = (
+    "added_tokens.json",
+    "chat_template.json",
+    "config.json",
+    "generation_config.json",
+    "gemma-3-12b-it-qat-q4_0-unquantized.safetensors",
+    "model.safetensors.index.json",
+    "preprocessor_config.json",
+    "processor_config.json",
+    "special_tokens_map.json",
+    "tokenizer.json",
+    "tokenizer.model",
+    "tokenizer_config.json",
+)
+
 FILE_ARTIFACTS = (
     CHECKPOINT_ARTIFACT,
     JUSTDUBIT_LORA_ARTIFACT,
