@@ -1,13 +1,20 @@
 import torch
-import triton
 
 from ltx_core.loader.kernels import fused_add_round_kernel
 from ltx_core.loader.primitives import LoraStateDictWithStrength, StateDict
+
+try:
+    import triton
+except ImportError:  # pragma: no cover - exercised on non-GPU test hosts
+    triton = None
 
 BLOCK_SIZE = 1024
 
 
 def fused_add_round_launch(target_weight: torch.Tensor, original_weight: torch.Tensor, seed: int) -> torch.Tensor:
+    if triton is None or fused_add_round_kernel is None:
+        raise RuntimeError("triton is required for float8 LoRA fusion but is not installed")
+
     if original_weight.dtype == torch.float8_e4m3fn:
         exponent_bits, mantissa_bits, exponent_bias = 4, 3, 7
     elif original_weight.dtype == torch.float8_e5m2:

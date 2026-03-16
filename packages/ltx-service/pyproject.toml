@@ -1,0 +1,27 @@
+[project]
+name = "ltx-service"
+version = "0.1.0"
+description = "Portable serverless inference service for JustDubit dubbing jobs"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "ltx-pipelines",
+    "fastapi>=0.115.0",
+    "httpx>=0.28.1",
+    "huggingface-hub[hf-xet]>=0.36.0",
+    "modal>=1.2.0",
+    "pydantic>=2.10.4",
+    "requests>=2.32.5",
+    "runpod>=1.7.9",
+]
+
+[project.scripts]
+ltx-service = "ltx_service.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9.8,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+ltx-pipelines = { workspace = true }
+

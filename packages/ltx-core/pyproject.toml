@@ -5,8 +5,8 @@ description = "Core implementation of Lightricks' LTX-2 model"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "torch~=2.7",
-    "torchaudio",
+    "torch>=2.9,<2.10",
+    "torchaudio>=2.9,<2.10",
     "einops",
     "numpy",
     "transformers",
@@ -25,7 +25,7 @@ xformers = { index = "pytorch" }
 
 [[tool.uv.index]]
 name = "pytorch"
-url = "https://download.pytorch.org/whl/cu129"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [build-system]
