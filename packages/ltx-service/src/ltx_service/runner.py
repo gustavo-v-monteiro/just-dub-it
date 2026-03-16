@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import sys
 import threading
@@ -14,7 +15,7 @@ from ltx_core.model.video_vae import TilingConfig
 from ltx_pipelines.constants import AUDIO_SAMPLE_RATE, DEFAULT_LORA_STRENGTH
 from ltx_pipelines.media_io import encode_video
 from ltx_pipelines.pipeline_justdubit import JustDubitPipeline, extract_first_frame
-from ltx_service.bootstrap import ensure_model_paths
+from ltx_service.bootstrap import bootstrap_models, ensure_model_paths
 from ltx_service.config import RuntimeConfig, current_gpu_name, require_cuda
 from ltx_service.schemas import DubbingJobRequest, DubbingJobResult
 from ltx_service.storage import download_to_path, upload_file
@@ -50,6 +51,13 @@ class DubbingRuntime:
 
     def __init__(self, config: RuntimeConfig):
         self.config = config
+        if os.getenv("LTX_BOOTSTRAP_IF_MISSING", "").lower() in {"1", "true", "yes"}:
+            try:
+                ensure_model_paths(config.model_paths)
+            except FileNotFoundError:
+                _log_event("runtime.bootstrap.start", model_root=config.model_root)
+                bootstrap_models(config.model_root)
+                _log_event("runtime.bootstrap.complete", model_root=config.model_root)
         self.device = require_cuda()
         self.model_paths = ensure_model_paths(config.model_paths)
         self._pipeline: JustDubitPipeline | None = None

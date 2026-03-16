@@ -57,17 +57,14 @@ def _download_gemma_public_mirror(destination: Path, *, token: str | None = None
 
     for repo_path in files:
         relative_path = Path(repo_path.removeprefix(prefix))
-        destination_path = destination / relative_path
-        destination_path.parent.mkdir(parents=True, exist_ok=True)
-        downloaded_path = Path(
-            hf_hub_download(
-                repo_id=GEMMA_PUBLIC_MIRROR_REPO_ID,
-                filename=repo_path,
-                token=token,
-                force_download=force,
-            )
+        hf_hub_download(
+            repo_id=GEMMA_PUBLIC_MIRROR_REPO_ID,
+            filename=relative_path.name,
+            subfolder=GEMMA_PUBLIC_MIRROR_PREFIX,
+            token=token,
+            force_download=force,
+            local_dir=str(destination.parent),
         )
-        shutil.copy2(downloaded_path, destination_path)
 
 
 def bootstrap_models(
@@ -84,15 +81,13 @@ def bootstrap_models(
         if destination.exists() and not force:
             continue
         destination.parent.mkdir(parents=True, exist_ok=True)
-        downloaded_path = Path(
-            hf_hub_download(
-                repo_id=artifact.repo_id,
-                filename=artifact.filename,
-                token=token,
-                force_download=force,
-            )
+        hf_hub_download(
+            repo_id=artifact.repo_id,
+            filename=artifact.filename,
+            token=token,
+            force_download=force,
+            local_dir=str(destination.parent),
         )
-        shutil.copy2(downloaded_path, destination)
 
     gemma_destination = model_root / GEMMA_ARTIFACT.relative_path
     if force and gemma_destination.exists():

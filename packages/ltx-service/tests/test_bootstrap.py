@@ -40,14 +40,19 @@ def test_bootstrap_models_falls_back_to_public_gemma_mirror(
         "ltx-2-19b-ic-lora-lipdubbing.safetensors": b"justdubit-lora",
         "ltx-2-19b-distilled-lora-384.safetensors": b"distilled-lora",
         "ltx-2-spatial-upscaler-x2-1.0.safetensors": b"spatial-upscaler",
-        "gemma-3-12b-it-qat-q4_0-unquantized/config.json": b"{}",
-        "gemma-3-12b-it-qat-q4_0-unquantized/tokenizer.model": b"tokenizer",
-        "gemma-3-12b-it-qat-q4_0-unquantized/model.safetensors.index.json": b"{}",
-        "gemma-3-12b-it-qat-q4_0-unquantized/gemma-3-12b-it-qat-q4_0-unquantized.safetensors": b"weights",
+        "config.json": b"{}",
+        "tokenizer.model": b"tokenizer",
+        "model.safetensors.index.json": b"{}",
+        "gemma-3-12b-it-qat-q4_0-unquantized.safetensors": b"weights",
     }
 
-    def fake_hf_hub_download(*, filename: str, **_: object) -> str:
-        path = tmp_path / "downloads" / filename
+    def fake_hf_hub_download(
+        *, filename: str, local_dir: str | None = None, subfolder: str | None = None, **_: object
+    ) -> str:
+        path = Path(local_dir or tmp_path / "downloads")
+        if subfolder:
+            path = path / subfolder
+        path = path / filename
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(downloads[filename])
         return str(path)
